@@ -1,9 +1,16 @@
 import csv
 import json
+import time
 
 import requests
 
-from config import budgets, token
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import Select, WebDriverWait
+
+from config import budget, token, mail, pw
 
 
 # set auth header
@@ -11,9 +18,53 @@ headers = {"Authorization": f"Bearer {token}"}
 
 
 def main():
-    # TODO hardcoded budget id
-    budget_id = "6a71e880-3f3c-421e-a6fb-db31f08553ca"
-    post_transactions(budget_id, transform_transactions("todo"))
+    scrape_finanzblick()
+
+
+def scrape_finanzblick():
+    """Scrape Finanzblick for transaction data"""
+
+    # set webdriver
+    driver = webdriver.Chrome("chromedriver/chromedriver")
+
+    driver.get("https://www.buhl.de/finanzblick/")
+
+    # get field for login and password
+    email = driver.find_element_by_id('ms-input-uname')
+    passwort = driver.find_element_by_id("ms-input-pword")
+
+    # fill in login and password
+    email.send_keys(mail)
+    passwort.send_keys(pw)
+    # submit login form
+    passwort.send_keys(Keys.RETURN)
+
+    # manual timeout till transactions are fetched
+    time.sleep(20)
+    # click okay button
+    try:
+        driver.find_element_by_id("popup-modal-btn-ok").click()
+    except:
+        print("Keine Umsatzabfrage stattgefunden")
+        pass
+    # popup-pin-getbookings
+
+    # Go to all acounts
+    driver.find_element_by_id("menu-account").click()
+    time.sleep(5)
+
+    # find booking grid wrapper
+    booking_grid = driver.find_element_by_xpath('//*[@id="booking-grid-wrapper"]/ul')
+    for li_item in booking_grid.find_elements_by_tag_name("li"):
+        li_item.click()
+        try:
+            booking_date = driver.find_element_by_id("input-chartdate")
+        except:
+            continue
+        if booking_date.get_attribute("value") == "Heute":
+            print("This is for YNAB!")
+        purpose = driver.find_element_by_id("input-purpose")
+        print(booking_date, purpose)
 
 
 def transform_transactions(account):
