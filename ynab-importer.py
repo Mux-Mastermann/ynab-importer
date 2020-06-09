@@ -1,70 +1,21 @@
 import csv
 import json
-import time
+import locale
 
 import requests
 
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import Select, WebDriverWait
+from datetime import datetime
+from config import budget, token
 
-from config import budget, token, mail, pw
-
+# set locale
+locale.setlocale(locale.LC_ALL, 'de')
 
 # set auth header
 headers = {"Authorization": f"Bearer {token}"}
 
 
 def main():
-    scrape_finanzblick()
-
-
-def scrape_finanzblick():
-    """Scrape Finanzblick for transaction data"""
-
-    # set webdriver
-    driver = webdriver.Chrome("chromedriver/chromedriver")
-
-    driver.get("https://www.buhl.de/finanzblick/")
-
-    # get field for login and password
-    email = driver.find_element_by_id('ms-input-uname')
-    passwort = driver.find_element_by_id("ms-input-pword")
-
-    # fill in login and password
-    email.send_keys(mail)
-    passwort.send_keys(pw)
-    # submit login form
-    passwort.send_keys(Keys.RETURN)
-
-    # manual timeout till transactions are fetched
-    time.sleep(20)
-    # click okay button
-    try:
-        driver.find_element_by_id("popup-modal-btn-ok").click()
-    except:
-        print("Keine Umsatzabfrage stattgefunden")
-        pass
-    # popup-pin-getbookings
-
-    # Go to all acounts
-    driver.find_element_by_id("menu-account").click()
-    time.sleep(5)
-
-    # find booking grid wrapper
-    booking_grid = driver.find_element_by_xpath('//*[@id="booking-grid-wrapper"]/ul')
-    for li_item in booking_grid.find_elements_by_tag_name("li"):
-        li_item.click()
-        try:
-            booking_date = driver.find_element_by_id("input-chartdate")
-        except:
-            continue
-        if booking_date.get_attribute("value") == "Heute":
-            print("This is for YNAB!")
-        purpose = driver.find_element_by_id("input-purpose")
-        print(booking_date, purpose)
+    print(transform_transactions("todo"))
 
 
 def transform_transactions(account):
@@ -83,11 +34,11 @@ def transform_transactions(account):
             # create a transaction for each line
             transaction = {
                 "account_id":   account, # string
-                "date":         line['date'], # string [YYYY-MM-DD]
-                "amount":       line['inflow'], # int, [Amount x 1000]
-                "payee_name":   " ".join(line['payee'].split()), # string
-                "memo":         " ".join(line['memo'].split()), # string
-                "import_id":  f"YNAB:{line['inflow']}:{line['date']}:1" # Format: [YNAB]:Amount:Date:[Ocurrences of same amount and date]
+                "date":         line['Buchungstag'].strftime('%Y-%m-%d'), # string [YYYY-MM-DD]
+                "amount":       line['Betrag'] * 1000, # int, [Amount x 1000]
+                "payee_name":   " ".join(line['Empfänger'].split()), # string
+                "memo":         " ".join(line['Verwendungszweck'].split()), # string
+                "import_id":  f"YNAB:{line['Betrag'] * 1000}:{line['Buchungstag'].strftime('%Y-%m-%d')}:1" # Format: [YNAB]:Amount:Date:[Ocurrences of same amount and date]
             }
             # append this transaction to final array of transactions
             transactions.append(transaction)
